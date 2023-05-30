@@ -82,8 +82,7 @@ func createClient() *mongo.Client {
 }
 
 func NewApp() *app {
-	coll := createClient().Database("DB_NAME").Collection("DB_COLL")
-
+	coll := createClient().Database(os.Getenv("DB_NAME")).Collection(os.Getenv("DB_COLL"))
 	return &app{
 		coll: coll,
 	}
