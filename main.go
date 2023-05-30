@@ -80,6 +80,15 @@ func NewApp() *app {
 func (app *app) createItems(w http.ResponseWriter, r *http.Request) {
 	var items []Item
 	err := json.NewDecoder(r.Body).Decode(&items)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusBadRequest,
+			Message: "Err decoding items",
+		}
+
+		json.NewEncoder(w).Encode(errResponse)
+		return
+	}
 
 	for _, v := range items {
 		if len(v.Title) < 3 {
