@@ -126,12 +126,38 @@ func (app *app) listSingleItem(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(item)
 }
 
+func updateItem(ctx context.Context, coll *mongo.Collection, id string, in Item) (*mongo.UpdateResult, error) {
+
+	mongoid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return &mongo.UpdateResult{}, err
+	}
+
+	updateItem := bson.M{"title": in.Title, "price": in.Price}
+
+	return coll.UpdateByID(ctx, mongoid, bson.M{"$set": updateItem})
+}
+
+func (app *app) updateSingleItem(w http.ResponseWriter, r *http.Request) {
+	var item Item
+	id := mux.Vars(r)["id"]
+
+	err := json.NewDecoder(r.Body).Decode(&item)
+	EncodeError(w, err)
+
+	res, err := updateItem(context.Background(), app.coll, id, item)
+	EncodeError(w, err)
+
+	json.NewEncoder(w).Encode(res)
+}
+
 func router(app *app) *mux.Router {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/list", app.listItems).Methods(http.MethodGet)
-	r.HandleFunc("/list/{id}", app.listSingleItem).Methods(http.MethodGet)
-	r.HandleFunc("/create", app.createItems).Methods(http.MethodPost)
+	r.HandleFunc("/items", app.createItems).Methods(http.MethodPost)
+	r.HandleFunc("/items", app.listItems).Methods(http.MethodGet)
+	r.HandleFunc("/items/{id}", app.listSingleItem).Methods(http.MethodGet)
+	r.HandleFunc("/items/{id}", app.updateSingleItem).Methods(http.MethodPut)
 
 	return r
 }
