@@ -1,0 +1,27 @@
+services:
+  api:
+    image: items-api
+    container_name: api
+    depends_on:
+      - db
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      DB_NAME: ${DB_NAME}
+      DB_COLL: ${DB_COLL}
+    ports:
+      - 8000:8000
+  db:
+    image: mongo
+    container_name: db1
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MONGO_INITDB_DATABASE: ${DB_NAME}
+
+    volumes:
+      - itemsdb:/data/items_data
+volumes:
+  itemsdb:    
