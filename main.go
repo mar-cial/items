@@ -30,10 +30,10 @@ type ErrResponse struct {
 	Message string `json:"Message"`
 }
 
-func EncodeError(err error) {
+func EncodeError(w http.ResponseWriter, err error) {
 	if err != nil {
 		errRes := ErrResponse{
-			Status:  http.StatusBadRequest,
+			Status:  http.StatusInternalServerError,
 			Message: err.Error(),
 		}
 		json.NewEncoder(w).Encode(errRes)
@@ -92,42 +92,22 @@ func NewApp() *app {
 func (app *app) createItems(w http.ResponseWriter, r *http.Request) {
 	var items []Item
 	err := json.NewDecoder(r.Body).Decode(&items)
-
-	if err != nil {
-		errRes := ErrResponse{
-			Status:  http.StatusBadRequest,
-			Message: err.Error(),
-		}
-		json.NewEncoder(w).Encode(errRes)
-	}
+	EncodeError(w, err)
 
 	res, err := insertItems(context.Background(), app.coll, items)
-	if err != nil {
-		errRes := ErrResponse{
-			Status:  http.StatusInternalServerError,
-			Message: err.Error(),
-		}
-		json.NewEncoder(w).Encode(errRes)
-	}
+	EncodeError(w, err)
 
 	json.NewEncoder(w).Encode(res)
 }
 
 func (app *app) listItems(w http.ResponseWriter, r *http.Request) {
 	items, err := getItems(context.Background(), app.coll)
-	if err != nil {
-		errRes := ErrResponse{
-			Status:  http.StatusInternalServerError,
-			Message: err.Error(),
-		}
-		json.NewEncoder(w).Encode(errRes)
-		return
-	}
+	EncodeError(w, err)
 
 	json.NewEncoder(w).Encode(items)
 }
 
-func getItem(ctx context.Context, coll *mongo.Collection, id string) (Item, error) {
+func getItem(ctx context.Context, coll *mongo.Collection, id primitive.ObjectID) (Item, error) {
 	var result Item
 	filter := bson.M{"_id": id}
 	err := coll.FindOne(context.Background(), filter).Decode(&result)
@@ -136,16 +116,12 @@ func getItem(ctx context.Context, coll *mongo.Collection, id string) (Item, erro
 
 func (app *app) listSingleItem(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	item, err := getItem(context.Background(), app.coll, id)
 
-	if err != nil {
-		errRes := ErrResponse{
-			Status:  http.StatusInternalServerError,
-			Message: err.Error(),
-		}
-		json.NewEncoder(w).Encode(errRes)
-		return
-	}
+	mongoid, err := primitive.ObjectIDFromHex(id)
+	EncodeError(w, err)
+
+	item, err := getItem(context.Background(), app.coll, mongoid)
+	EncodeError(w, err)
 
 	json.NewEncoder(w).Encode(item)
 }
