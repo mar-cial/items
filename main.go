@@ -30,17 +30,6 @@ type ErrResponse struct {
 	Message string `json:"Message"`
 }
 
-func EncodeError(w http.ResponseWriter, err error) {
-	if err != nil {
-		errRes := ErrResponse{
-			Status:  http.StatusInternalServerError,
-			Message: err.Error(),
-		}
-		json.NewEncoder(w).Encode(errRes)
-		return
-	}
-}
-
 func insertItems(ctx context.Context, coll *mongo.Collection, items []Item) (*mongo.InsertManyResult, error) {
 
 	var itemsToInsert []interface{}
@@ -91,18 +80,68 @@ func NewApp() *app {
 func (app *app) createItems(w http.ResponseWriter, r *http.Request) {
 	var items []Item
 	err := json.NewDecoder(r.Body).Decode(&items)
-	EncodeError(w, err)
+
+	for _, v := range items {
+		if len(v.Title) < 3 {
+			errResponse := ErrResponse{
+				Status:  http.StatusBadRequest,
+				Message: "Title must be at least 3 chars long. Either title is too short or wrong type",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		}
+
+		if v.Price <= 0 {
+			errResponse := ErrResponse{
+				Status:  http.StatusBadRequest,
+				Message: "Price cannot be zero, nil or something else happened",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		}
+	}
 
 	res, err := insertItems(context.Background(), app.coll, items)
-	EncodeError(w, err)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "Unable to insert items",
+		}
 
+		json.NewEncoder(w).Encode(errResponse)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
 }
 
 func (app *app) listItems(w http.ResponseWriter, r *http.Request) {
-	items, err := getItems(context.Background(), app.coll)
-	EncodeError(w, err)
 
+	items, err := getItems(context.Background(), app.coll)
+	if err != nil {
+		if len(items) == 0 || items == nil {
+			errResponse := ErrResponse{
+				Status:  http.StatusBadRequest,
+				Message: "items are either nil or len(items) == 0",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		} else {
+			errResponse := ErrResponse{
+				Status:  http.StatusInternalServerError,
+				Message: "Something went wrong while getting items",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		}
+
+	}
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(items)
 }
 
@@ -117,16 +156,34 @@ func (app *app) listSingleItem(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	mongoid, err := primitive.ObjectIDFromHex(id)
-	EncodeError(w, err)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "unable to generate ObjectID from the provided id",
+		}
+
+		json.NewEncoder(w).Encode(errResponse)
+		return
+
+	}
 
 	item, err := getItem(context.Background(), app.coll, mongoid)
-	EncodeError(w, err)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "unable to get single item",
+		}
 
+		json.NewEncoder(w).Encode(errResponse)
+		return
+
+	}
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(item)
 }
 
 func updateItem(ctx context.Context, coll *mongo.Collection, id string, in Item) (*mongo.UpdateResult, error) {
-
 	mongoid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return &mongo.UpdateResult{}, err
@@ -142,11 +199,49 @@ func (app *app) updateSingleItem(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	err := json.NewDecoder(r.Body).Decode(&item)
-	EncodeError(w, err)
+	if err != nil {
+		if len(item.Title) < 3 {
+			errResponse := ErrResponse{
+				Status:  http.StatusBadRequest,
+				Message: "Title must be at least 3 chars long. Either title is too short or",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		}
+
+		if item.Price <= 0 {
+			errResponse := ErrResponse{
+				Status:  http.StatusBadRequest,
+				Message: "Price cannot be zero, nil or something else happened",
+			}
+
+			json.NewEncoder(w).Encode(errResponse)
+			return
+		}
+
+		errResponse := ErrResponse{
+			Status:  http.StatusUnprocessableEntity,
+			Message: "Cannot process request",
+		}
+
+		json.NewEncoder(w).Encode(errResponse)
+		return
+
+	}
 
 	res, err := updateItem(context.Background(), app.coll, id, item)
-	EncodeError(w, err)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "Something went wrong while updating item",
+		}
 
+		json.NewEncoder(w).Encode(errResponse)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
 }
 
@@ -162,14 +257,43 @@ func deleteItem(ctx context.Context, coll *mongo.Collection, id string) (*mongo.
 func (app *app) deleteSingleItem(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	res, err := deleteItem(context.Background(), app.coll, id)
-	EncodeError(w, err)
+	if len(id) != 24 {
+		errResponse := ErrResponse{
+			Status:  http.StatusBadRequest,
+			Message: "Invalid ID string length. Should be 24.",
+		}
 
+		json.NewEncoder(w).Encode(errResponse)
+		return
+
+	}
+
+	res, err := deleteItem(context.Background(), app.coll, id)
+	if err != nil {
+		errResponse := ErrResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "Something went wrong while deleting item",
+		}
+
+		json.NewEncoder(w).Encode(errResponse)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
+}
+
+func commonMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func router(app *app) *mux.Router {
 	r := mux.NewRouter()
+
+	r.Use(commonMiddleware)
 
 	r.HandleFunc("/items", app.createItems).Methods(http.MethodPost)
 	r.HandleFunc("/items", app.listItems).Methods(http.MethodGet)
