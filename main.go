@@ -151,6 +151,24 @@ func (app *app) updateSingleItem(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+func deleteItem(ctx context.Context, coll *mongo.Collection, id string) (*mongo.DeleteResult, error) {
+	mongoid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return &mongo.DeleteResult{}, err
+	}
+
+	return coll.DeleteOne(ctx, bson.M{"_id": mongoid})
+}
+
+func (app *app) deleteSingleItem(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	res, err := deleteItem(context.Background(), app.coll, id)
+	EncodeError(w, err)
+
+	json.NewEncoder(w).Encode(res)
+}
+
 func router(app *app) *mux.Router {
 	r := mux.NewRouter()
 
@@ -158,6 +176,7 @@ func router(app *app) *mux.Router {
 	r.HandleFunc("/items", app.listItems).Methods(http.MethodGet)
 	r.HandleFunc("/items/{id}", app.listSingleItem).Methods(http.MethodGet)
 	r.HandleFunc("/items/{id}", app.updateSingleItem).Methods(http.MethodPut)
+	r.HandleFunc("/items/{id}", app.deleteSingleItem).Methods(http.MethodDelete)
 
 	return r
 }
