@@ -3,21 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-func init() {
-	godotenv.Load()
-}
 
 type Item struct {
 	ID    primitive.ObjectID `bson:"_id,omitempty"`
@@ -59,7 +55,12 @@ type app struct {
 }
 
 func createClient() *mongo.Client {
-	uri := os.Getenv("MONGO_URI")
+	user := os.Getenv("DBUSER")
+	pass := os.Getenv("DBPASS")
+	host := os.Getenv("DBHOST")
+	port := os.Getenv("DBPORT")
+
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", user, pass, host, port)
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
 	client, err := mongo.Connect(context.Background(), opts)
@@ -71,7 +72,7 @@ func createClient() *mongo.Client {
 }
 
 func NewApp() *app {
-	coll := createClient().Database(os.Getenv("DB_NAME")).Collection(os.Getenv("DB_COLL"))
+	coll := createClient().Database(os.Getenv("DBNAME")).Collection(os.Getenv("DBCOLL"))
 	return &app{
 		coll: coll,
 	}
@@ -128,7 +129,6 @@ func (app *app) createItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *app) listItems(w http.ResponseWriter, r *http.Request) {
-
 	items, err := getItems(context.Background(), app.coll)
 	if err != nil {
 		if len(items) == 0 || items == nil {

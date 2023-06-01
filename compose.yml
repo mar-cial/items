@@ -1,27 +1,40 @@
 services:
-  api:
-    image: items-api
-    container_name: api
+  rest-server:
+    container_name: rest-server
     depends_on:
       - db
     build: 
       context: .
       dockerfile: Dockerfile
+    hostname: rest-server
     environment:
-      MONGO_URI: ${MONGO_URI}
-      DB_NAME: ${DB_NAME}
-      DB_COLL: ${DB_COLL}
+      DBUSER: ${DBUSER:-root}
+      DBPASS: ${DBPASS:?password not set}
+      DBNAME: ${DBNAME:-testdb}
+      DBCOLL: ${DBCOLL:-testcoll}
+    networks:
+      - itemsnet
     ports:
-      - 8000:8000
+      - 6000:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
   db:
     image: mongo
     container_name: db1
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
-      MONGO_INITDB_DATABASE: ${DB_NAME}
-
+      MONGO_INITDB_ROOT_USERNAME: ${DBUSER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DBPASS}
+      MONGO_INITDB_DATABASE: ${DBNAME}
+    ports:
+      - 27017:27017
     volumes:
-      - itemsdb:/data/items_data
+      - itemsdb:/data/db
+    networks:
+      - itemsnet
+
 volumes:
   itemsdb:    
+    
+networks:
+  itemsnet:
