@@ -27,7 +27,6 @@ type ErrResponse struct {
 }
 
 func insertItems(ctx context.Context, coll *mongo.Collection, items []Item) (*mongo.InsertManyResult, error) {
-
 	var itemsToInsert []interface{}
 
 	for _, v := range items {
@@ -68,6 +67,11 @@ func createClient() *mongo.Client {
 		log.Fatalln("err creating client: ", err)
 	}
 
+	if err := client.Ping(context.Background(), nil); err != nil {
+		log.Fatalln("unsuccesful ping returned from mongo")
+	}
+
+	log.Println("Succesful connection to MongoDB")
 	return client
 }
 
@@ -167,8 +171,8 @@ func (app *app) listSingleItem(w http.ResponseWriter, r *http.Request) {
 	mongoid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		errResponse := ErrResponse{
-			Status:  http.StatusInternalServerError,
-			Message: "unable to generate ObjectID from the provided id",
+			Status:  http.StatusNotFound,
+			Message: "item not found",
 		}
 
 		json.NewEncoder(w).Encode(errResponse)
