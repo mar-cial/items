@@ -22,6 +22,6 @@ WORKDIR /
 
 COPY --from=build /items /items
 
-EXPOSE 8080
+EXPOSE 8000
 
 CMD ["/items"]

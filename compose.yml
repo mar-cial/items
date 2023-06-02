@@ -10,18 +10,21 @@ services:
     environment:
       DBUSER: ${DBUSER:-root}
       DBPASS: ${DBPASS:?password not set}
+      DBHOST: ${DBHOST:-db}
+      DBPORT: ${DBPORT:-27017}
       DBNAME: ${DBNAME:-testdb}
       DBCOLL: ${DBCOLL:-testcoll}
     networks:
       - itemsnet
     ports:
-      - 6000:8080
+      - 8000:8000
     deploy:
       restart_policy:
         condition: on-failure
   db:
     image: mongo
     container_name: db1
+    hostname: db
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${DBUSER}
       MONGO_INITDB_ROOT_PASSWORD: ${DBPASS}
