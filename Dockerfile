@@ -13,6 +13,7 @@ COPY *.go ./
 
 RUN CGO_ENABLED=0 go build -o /items
 
+RUN go test -v
 
 ## deploy
 
