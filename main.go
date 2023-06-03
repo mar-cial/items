@@ -53,13 +53,8 @@ type app struct {
 	coll *mongo.Collection
 }
 
-func createClient() *mongo.Client {
-	user := os.Getenv("DBUSER")
-	pass := os.Getenv("DBPASS")
-	host := os.Getenv("DBHOST")
-	port := os.Getenv("DBPORT")
-
-	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", user, pass, host, port)
+func createClient(c *config) *mongo.Client {
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", c.user, c.pass, c.host, c.port)
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
 	client, err := mongo.Connect(context.Background(), opts)
@@ -75,8 +70,17 @@ func createClient() *mongo.Client {
 	return client
 }
 
-func NewApp() *app {
-	coll := createClient().Database(os.Getenv("DBNAME")).Collection(os.Getenv("DBCOLL"))
+type config struct {
+	user string
+	pass string
+	host string
+	port string
+	name string
+	coll string
+}
+
+func NewApp(c *config) *app {
+	coll := createClient(c).Database(c.name).Collection(c.coll)
 	return &app{
 		coll: coll,
 	}
@@ -318,7 +322,16 @@ func router(app *app) *mux.Router {
 }
 
 func main() {
-	app := NewApp()
+	config := &config{
+		user: os.Getenv("DBUSER"),
+		pass: os.Getenv("DBPASS"),
+		host: os.Getenv("DBHOST"),
+		port: os.Getenv("DBPORT"),
+		name: os.Getenv("DBNAME"),
+		coll: os.Getenv("DBCOLL"),
+	}
+
+	app := NewApp(config)
 	r := router(app)
 
 	server := http.Server{
