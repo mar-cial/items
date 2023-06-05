@@ -2,15 +2,21 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"testing"
 
+	"github.com/mar-cial/items/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var endpoint string
+var c *mongo.Client
+var testItem *model.Item
 
 func TestCreateClient(t *testing.T) {
 	var err error
@@ -31,6 +37,53 @@ func TestCreateClient(t *testing.T) {
 
 	err = client.Ping(context.Background(), nil)
 	assert.NoError(t, err)
+
+	c = client
+}
+
+func TestInsertItems(t *testing.T) {
+	ctx := context.Background()
+
+	items := []model.Item{
+		{
+			ID:    primitive.NewObjectID(),
+			Title: "Test Product 1",
+			Price: 420.69,
+		},
+		{
+			ID:    primitive.NewObjectID(),
+			Title: "Test Product 2",
+			Price: 99.99,
+		},
+	}
+
+	// we are going to use this item to list, update and delete it
+	testItem = &items[0]
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := c.Database(dbname).Collection(dbcoll)
+
+	res, err := InsertItems(ctx, coll, items)
+	assert.NoError(t, err)
+
+	assert.Equal(t, items[0].ID, res.InsertedIDs[0])
+	assert.Len(t, res.InsertedIDs, 2)
+}
+
+func TestListSingleItem(t *testing.T) {
+	ctx := context.Background()
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := c.Database(dbname).Collection(dbcoll)
+
+	res, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
+	assert.NoError(t, err)
+
+	fmt.Println(res)
 }
 
 func TestMain(m *testing.M) {
@@ -79,6 +132,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 
 	defer func() {
+		os.Clearenv()
 		err = mongoC.Terminate(ctx)
 		if err != nil {
 			log.Fatalln(err)
