@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -17,6 +16,7 @@ import (
 var endpoint string
 var c *mongo.Client
 var testItem *model.Item
+var testItemsList []model.Item
 
 func TestCreateClient(t *testing.T) {
 	var err error
@@ -83,7 +83,73 @@ func TestListSingleItem(t *testing.T) {
 	res, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
 	assert.NoError(t, err)
 
-	fmt.Println(res)
+	assert.Equal(t, testItem.ID, res.ID)
+	assert.Equal(t, testItem.Title, res.Title)
+	assert.Equal(t, testItem.Price, res.Price)
+}
+
+func TestListItems(t *testing.T) {
+	ctx := context.Background()
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := c.Database(dbname).Collection(dbcoll)
+
+	res, err := ListItems(ctx, coll)
+	assert.NoError(t, err)
+
+	for i, v := range testItemsList {
+
+		assert.Equal(t, v.ID, res[i].ID, "should be same")
+
+	}
+}
+
+func TestUpdateOneItem(t *testing.T) {
+	ctx := context.Background()
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := c.Database(dbname).Collection(dbcoll)
+
+	newItem := model.Item{
+		Title: "Updated item",
+		Price: 12.99,
+	}
+
+	res, err := UpdateOneItem(ctx, coll, testItem.ID.Hex(), &newItem)
+	assert.NoError(t, err)
+
+	// needs to be converted to int64 to pass, for whatever reason
+	assert.Equal(t, int64(1), res.MatchedCount)
+	assert.Equal(t, int64(1), res.ModifiedCount)
+
+	// get the item that was just inserted
+	item, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
+	assert.NoError(t, err)
+
+	// make sure values match
+	assert.Equal(t, newItem.Title, item.Title)
+	assert.Equal(t, newItem.Price, item.Price)
+}
+
+func TestDeleteOneItem(t *testing.T) {
+	ctx := context.Background()
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := c.Database(dbname).Collection(dbcoll)
+
+	item, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
+	assert.NoError(t, err)
+
+	res, err := DeleteOneItem(ctx, coll, item.ID.Hex())
+	assert.NoError(t, err)
+
+	assert.Equal(t, int64(1), res.DeletedCount)
 }
 
 func TestMain(m *testing.M) {
