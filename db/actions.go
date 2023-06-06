@@ -9,21 +9,25 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+func InsertOneItem(ctx context.Context, coll *mongo.Collection, item *model.Item) (*mongo.InsertOneResult, error) {
+	bsonDoc, err := bson.Marshal(item)
+	if err != nil {
+		return &mongo.InsertOneResult{}, err
+	}
+
+	return coll.InsertOne(ctx, bsonDoc)
+}
+
 func InsertItems(ctx context.Context, coll *mongo.Collection, items []model.Item) (*mongo.InsertManyResult, error) {
 	var in []interface{}
 
 	for k := range items {
-		if !primitive.IsValidObjectID(items[k].ID.Hex()) {
-			items[k].ID = primitive.NewObjectID()
-		}
-
 		in = append(in, items[k])
 	}
-
 	return coll.InsertMany(ctx, in)
 }
 
-func ListSingleItem(ctx context.Context, coll *mongo.Collection, id string) (model.Item, error) {
+func ListOneItem(ctx context.Context, coll *mongo.Collection, id string) (model.Item, error) {
 	var err error
 	var result model.Item
 

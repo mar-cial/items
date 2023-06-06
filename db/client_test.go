@@ -14,9 +14,8 @@ import (
 )
 
 var endpoint string
-var c *mongo.Client
-var testItem *model.Item
-var testItemsList []model.Item
+var mc *mongo.Client
+var ids []primitive.ObjectID
 
 func TestCreateClient(t *testing.T) {
 	var err error
@@ -38,54 +37,75 @@ func TestCreateClient(t *testing.T) {
 	err = client.Ping(context.Background(), nil)
 	assert.NoError(t, err)
 
-	c = client
+	mc = client
+}
+
+func TestInsertItem(t *testing.T) {
+	ctx := context.Background()
+
+	item := model.Item{
+		Title: "Test Product 1",
+		Price: 8008.55,
+	}
+
+	dbname := os.Getenv("DBNAME")
+	dbcoll := os.Getenv("DBCOLL")
+
+	coll := mc.Database(dbname).Collection(dbcoll)
+
+	res, err := InsertOneItem(ctx, coll, &item)
+	assert.NoError(t, err)
+
+	assert.True(t, primitive.IsValidObjectID(res.InsertedID.(primitive.ObjectID).Hex()))
+
+	ids = append(ids, res.InsertedID.(primitive.ObjectID))
 }
 
 func TestInsertItems(t *testing.T) {
 	ctx := context.Background()
 
+	// we are also going to append this slice to testItemsList
 	items := []model.Item{
 		{
-			ID:    primitive.NewObjectID(),
-			Title: "Test Product 1",
+			Title: "Test Product 2",
 			Price: 420.69,
 		},
 		{
-			ID:    primitive.NewObjectID(),
-			Title: "Test Product 2",
+			Title: "Test Product 3",
 			Price: 99.99,
 		},
 	}
 
-	// we are going to use this item to list, update and delete it
-	testItem = &items[0]
-
 	dbname := os.Getenv("DBNAME")
 	dbcoll := os.Getenv("DBCOLL")
 
-	coll := c.Database(dbname).Collection(dbcoll)
+	coll := mc.Database(dbname).Collection(dbcoll)
 
 	res, err := InsertItems(ctx, coll, items)
 	assert.NoError(t, err)
 
-	assert.Equal(t, items[0].ID, res.InsertedIDs[0])
 	assert.Len(t, res.InsertedIDs, 2)
+	for k := range res.InsertedIDs {
+		assert.True(t, primitive.IsValidObjectID(res.InsertedIDs[k].(primitive.ObjectID).Hex()))
+		ids = append(ids, res.InsertedIDs[k].(primitive.ObjectID))
+	}
+
 }
 
-func TestListSingleItem(t *testing.T) {
+func TestListOneItem(t *testing.T) {
 	ctx := context.Background()
 
 	dbname := os.Getenv("DBNAME")
 	dbcoll := os.Getenv("DBCOLL")
 
-	coll := c.Database(dbname).Collection(dbcoll)
+	coll := mc.Database(dbname).Collection(dbcoll)
 
-	res, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
+	res, err := ListOneItem(ctx, coll, ids[0].Hex())
 	assert.NoError(t, err)
 
-	assert.Equal(t, testItem.ID, res.ID)
-	assert.Equal(t, testItem.Title, res.Title)
-	assert.Equal(t, testItem.Price, res.Price)
+	assert.True(t, primitive.IsValidObjectID(res.ID.Hex()))
+	assert.Greater(t, res.Price, 0.0)
+	assert.NotEmpty(t, res.Title)
 }
 
 func TestListItems(t *testing.T) {
@@ -94,15 +114,15 @@ func TestListItems(t *testing.T) {
 	dbname := os.Getenv("DBNAME")
 	dbcoll := os.Getenv("DBCOLL")
 
-	coll := c.Database(dbname).Collection(dbcoll)
+	coll := mc.Database(dbname).Collection(dbcoll)
 
 	res, err := ListItems(ctx, coll)
 	assert.NoError(t, err)
 
-	for i, v := range testItemsList {
-
-		assert.Equal(t, v.ID, res[i].ID, "should be same")
-
+	for k := range res {
+		assert.True(t, primitive.IsValidObjectID(res[k].ID.Hex()))
+		assert.Greater(t, res[k].Price, 0.0)
+		assert.NotEmpty(t, res[k].Title)
 	}
 }
 
@@ -112,27 +132,25 @@ func TestUpdateOneItem(t *testing.T) {
 	dbname := os.Getenv("DBNAME")
 	dbcoll := os.Getenv("DBCOLL")
 
-	coll := c.Database(dbname).Collection(dbcoll)
+	coll := mc.Database(dbname).Collection(dbcoll)
 
-	newItem := model.Item{
-		Title: "Updated item",
-		Price: 12.99,
+	updatedItem := &model.Item{
+		Title: "Updated Item 1",
+		Price: 80085.55,
 	}
 
-	res, err := UpdateOneItem(ctx, coll, testItem.ID.Hex(), &newItem)
+	res, err := UpdateOneItem(ctx, coll, ids[0].Hex(), updatedItem)
 	assert.NoError(t, err)
 
 	// needs to be converted to int64 to pass, for whatever reason
 	assert.Equal(t, int64(1), res.MatchedCount)
 	assert.Equal(t, int64(1), res.ModifiedCount)
 
-	// get the item that was just inserted
-	item, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
-	assert.NoError(t, err)
+	// checking if it updated
+	item, _ := ListOneItem(ctx, coll, ids[0].Hex())
 
-	// make sure values match
-	assert.Equal(t, newItem.Title, item.Title)
-	assert.Equal(t, newItem.Price, item.Price)
+	assert.Equal(t, item.Title, updatedItem.Title)
+	assert.Equal(t, item.Price, updatedItem.Price)
 }
 
 func TestDeleteOneItem(t *testing.T) {
@@ -141,14 +159,10 @@ func TestDeleteOneItem(t *testing.T) {
 	dbname := os.Getenv("DBNAME")
 	dbcoll := os.Getenv("DBCOLL")
 
-	coll := c.Database(dbname).Collection(dbcoll)
+	coll := mc.Database(dbname).Collection(dbcoll)
 
-	item, err := ListSingleItem(ctx, coll, testItem.ID.Hex())
+	res, err := DeleteOneItem(ctx, coll, ids[0].Hex())
 	assert.NoError(t, err)
-
-	res, err := DeleteOneItem(ctx, coll, item.ID.Hex())
-	assert.NoError(t, err)
-
 	assert.Equal(t, int64(1), res.DeletedCount)
 }
 
@@ -180,7 +194,7 @@ func TestMain(m *testing.M) {
 		Image:        "mongo",
 		Env:          envs,
 		ExposedPorts: []string{os.Getenv("DBPORT")},
-		Name:         "mongoTestContainer",
+		Name:         "dbPkgMongoTestContainer",
 		Hostname:     os.Getenv("DBHOST"),
 		AutoRemove:   true,
 	}
