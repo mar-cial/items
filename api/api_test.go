@@ -56,9 +56,8 @@ func TestCreateServer(t *testing.T) {
 }
 
 func TestCreateRouter(t *testing.T) {
-	router := CreateRouter(a)
+	// r := CreateRouter(a)
 	// will come back to this
-	fmt.Println(&router)
 }
 
 // I guess I'll give it this long ass name with sufix -Handler to REALLY differentiate them
@@ -144,13 +143,14 @@ func TestListOneItemHandler(t *testing.T) {
 
 	router.ServeHTTP(rec, req)
 
-	decoder := json.NewDecoder(rec.Result().Body)
+	res := rec.Result()
+	defer res.Body.Close()
 
-	var item model.Item
+	decoder := json.NewDecoder(res.Body)
+
+	var item *model.Item
 	err := decoder.Decode(&item)
-	if err != nil {
-		fmt.Println("err: ", err)
-	}
+	assert.NoError(t, err)
 
 	// assertions
 	assert.True(t, primitive.IsValidObjectID(item.ID.Hex()))
@@ -158,13 +158,37 @@ func TestListOneItemHandler(t *testing.T) {
 	assert.Greater(t, item.Price, 0.0)
 }
 
-func TestListItems(t *testing.T) {
-	// path := "/items/list"
+func TestListItemsHandler(t *testing.T) {
+	path := "/items/list"
 
-	// need to check every item returned by the function
-	// req := httptest.NewRequest(http.MethodGet, path, nil)
-	// rec := httptest.NewRecoder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
 
+	router := mux.NewRouter()
+
+	router.HandleFunc(path, a.listItemsHandler)
+
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	var items []model.Item
+	err := decoder.Decode(&items)
+	assert.NoError(t, err)
+
+	// assertions
+	for a := range items {
+		assert.True(t, primitive.IsValidObjectID(items[a].ID.Hex()))
+		assert.NotEmpty(t, items[a].Title)
+		assert.Greater(t, items[a].Price, 0.0)
+	}
+}
+
+func TestUpdateItemsHandler(t *testing.T) {
+	// todo
 }
 
 func TestMain(m *testing.M) {

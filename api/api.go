@@ -109,12 +109,11 @@ func (app *app) listItemsHandler(w http.ResponseWriter, r *http.Request) {
 
 	items, err := db.ListItems(r.Context(), coll)
 	if err != nil {
-		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		serveErrResponse(w, "could not list all items", http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Println(items)
-
+	json.NewEncoder(w).Encode(&items)
 }
 
 func (app *app) updateOneItemHandler(w http.ResponseWriter, r *http.Request) {
