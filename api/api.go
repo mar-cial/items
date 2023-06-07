@@ -26,14 +26,14 @@ func CreateApp() (*app, error) {
 }
 
 type errResponse struct {
-	message string `json:"message"`
-	status  int    `json:"status"`
+	Message string `json:"message"`
+	Status  int    `json:"status"`
 }
 
 func serveErrResponse(w http.ResponseWriter, msg string, status int) {
 	json.NewEncoder(w).Encode(&errResponse{
-		message: msg,
-		status:  status,
+		Message: msg,
+		Status:  status,
 	})
 }
 
@@ -113,15 +113,53 @@ func (app *app) listItemsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(&items)
+	err = json.NewEncoder(w).Encode(&items)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func (app *app) updateOneItemHandler(w http.ResponseWriter, r *http.Request) {
+	coll := app.mc.Database(os.Getenv("DBNAME")).Collection(os.Getenv("DBCOLL"))
+	id := mux.Vars(r)["id"]
+
+	if id == "" {
+		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		return
+	}
+
+	var item *model.Item
+	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+		serveErrResponse(w, "err unmarshaling", http.StatusBadRequest)
+		return
+	}
+
+	updateRes, err := db.UpdateOneItem(r.Context(), coll, id, item)
+	if err != nil {
+		serveErrResponse(w, "err updating item", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(updateRes)
 
 }
 
 func (app *app) deleteOneItemHandler(w http.ResponseWriter, r *http.Request) {
+	coll := app.mc.Database(os.Getenv("DBNAME")).Collection(os.Getenv("DBCOLL"))
+	id := mux.Vars(r)["id"]
 
+	if id == "" {
+		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		return
+	}
+
+	delRes, err := db.DeleteOneItem(r.Context(), coll, id)
+	if err != nil {
+		serveErrResponse(w, "err received from delete one item", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(delRes)
 }
 
 func CreateRouter(app *app) *mux.Router {

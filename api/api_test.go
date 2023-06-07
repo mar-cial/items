@@ -21,8 +21,6 @@ import (
 
 var endpoint string
 var mc *mongo.Client
-var testItem *model.Item
-var testItemsList []model.Item
 var a *app
 var ids []string
 
@@ -60,8 +58,8 @@ func TestCreateRouter(t *testing.T) {
 	// will come back to this
 }
 
-// I guess I'll give it this long ass name with sufix -Handler to REALLY differentiate them
-// db/actions
+// I guess I'll give it this long ass name with sufix -Handler to
+// REALLY differentiate them
 func TestCreateSingleItemHandler(t *testing.T) {
 	testItem := model.Item{
 		Title: "Test Item",
@@ -188,7 +186,96 @@ func TestListItemsHandler(t *testing.T) {
 }
 
 func TestUpdateItemsHandler(t *testing.T) {
-	// todo
+	path := fmt.Sprintf("/items/update/%s", ids[0])
+
+	assert.True(t, primitive.IsValidObjectID(ids[0]))
+
+	updatedItem := &model.Item{
+		Title: "Updated item",
+		Price: 8008.50,
+	}
+
+	itemBytes, err := json.Marshal(updatedItem)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, path, bytes.NewReader(itemBytes))
+	rec := httptest.NewRecorder()
+
+	// have to create a new mux router in order to process that id var
+	router := mux.NewRouter()
+
+	router.HandleFunc("/items/update/{id}", a.updateOneItemHandler)
+
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	var updateResult *mongo.UpdateResult
+	err = decoder.Decode(&updateResult)
+	assert.NoError(t, err)
+
+	assert.Equal(t, int64(1), updateResult.MatchedCount)
+	assert.Equal(t, int64(1), updateResult.ModifiedCount)
+}
+
+func TestDeleteOneItemHandler(t *testing.T) {
+	path := fmt.Sprintf("/items/delete/%s", ids[0])
+	assert.True(t, primitive.IsValidObjectID(ids[0]))
+
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	rec := httptest.NewRecorder()
+
+	// another router... maybe I should've used that router up there...
+	router := mux.NewRouter()
+
+	router.HandleFunc("/items/delete/{id}", a.deleteOneItemHandler).Methods(http.MethodDelete)
+
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	var deleteResult *mongo.DeleteResult
+	err := decoder.Decode(&deleteResult)
+	assert.NoError(t, err)
+
+	assert.Equal(t, int64(1), deleteResult.DeletedCount)
+}
+
+func TestCheckItemsAgain(t *testing.T) {
+	path := "/items/list"
+
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+
+	router := mux.NewRouter()
+
+	router.HandleFunc(path, a.listItemsHandler)
+
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	var items []model.Item
+	err := decoder.Decode(&items)
+	assert.NoError(t, err)
+
+	// assertions
+	for a := range items {
+		assert.True(t, primitive.IsValidObjectID(items[a].ID.Hex()))
+		assert.NotEmpty(t, items[a].Title)
+		assert.Greater(t, items[a].Price, 0.0)
+	}
+
+	fmt.Println(items)
 }
 
 func TestMain(m *testing.M) {
