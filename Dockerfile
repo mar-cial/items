@@ -9,7 +9,7 @@ COPY go.sum go.mod ./
 
 RUN go mod download
 
-COPY *.go ./
+COPY . ./
 
 RUN CGO_ENABLED=0 go build -o /items
 
