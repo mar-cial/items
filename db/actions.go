@@ -9,6 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// idk why I made this one receive a pointer to an item...
+// will check back on it later.
 func InsertOneItem(ctx context.Context, coll *mongo.Collection, item *model.Item) (*mongo.InsertOneResult, error) {
 	bsonDoc, err := bson.Marshal(item)
 	if err != nil {

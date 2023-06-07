@@ -3,17 +3,19 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/mar-cial/items/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -22,6 +24,7 @@ var mc *mongo.Client
 var testItem *model.Item
 var testItemsList []model.Item
 var a *app
+var ids []string
 
 func TestCreateApp(t *testing.T) {
 	var err error
@@ -50,7 +53,6 @@ func TestCreateServer(t *testing.T) {
 	server, err := CreateServer()
 	assert.NoError(t, err)
 	assert.Equal(t, ":8000", server.Addr)
-
 }
 
 func TestCreateRouter(t *testing.T) {
@@ -59,7 +61,9 @@ func TestCreateRouter(t *testing.T) {
 	fmt.Println(&router)
 }
 
-func TestCreateSingleItem(t *testing.T) {
+// I guess I'll give it this long ass name with sufix -Handler to REALLY differentiate them
+// db/actions
+func TestCreateSingleItemHandler(t *testing.T) {
 	testItem := model.Item{
 		Title: "Test Item",
 		Price: 69.69,
@@ -68,19 +72,98 @@ func TestCreateSingleItem(t *testing.T) {
 	itemBytes, err := testItem.Marshal()
 	assert.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/items/list", bytes.NewBuffer(itemBytes))
+	req := httptest.NewRequest(http.MethodPost, "/items/create/one", bytes.NewReader(itemBytes))
 	w := httptest.NewRecorder()
 
-	a.createItem(w, req)
+	a.createOneItemHandler(w, req)
 
 	res := w.Result()
 	defer res.Body.Close()
 
-	data, err := io.ReadAll(res.Body)
+	// assertions
+
+	decoder := json.NewDecoder(res.Body)
+
+	var insertRes *mongo.InsertOneResult
+
+	err = decoder.Decode(&insertRes)
+	assert.NoError(t, err)
+	assert.True(t, primitive.IsValidObjectID(insertRes.InsertedID.(string)))
+
+	ids = append(ids, insertRes.InsertedID.(string))
+}
+
+func TestCreateItemsHandler(t *testing.T) {
+	testItems := []model.Item{
+		{
+			Title: "Test item 2",
+			Price: 12.24,
+		},
+		{
+			Title: "Test item 3",
+			Price: 52.24,
+		},
+	}
+
+	itemsBytes, err := json.Marshal(testItems)
 	assert.NoError(t, err)
 
-	dataString := string(data)
-	assert.Contains(t, dataString, "InsertedID")
+	req := httptest.NewRequest(http.MethodPost, "/items/create/many", bytes.NewReader(itemsBytes))
+	w := httptest.NewRecorder()
+
+	a.createManyItemsHandler(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	var insertManyRes *mongo.InsertManyResult
+
+	err = decoder.Decode(&insertManyRes)
+	assert.NoError(t, err)
+
+	for a := range insertManyRes.InsertedIDs {
+		assert.True(t, primitive.IsValidObjectID(insertManyRes.InsertedIDs[a].(string)))
+		ids = append(ids, insertManyRes.InsertedIDs[a].(string))
+	}
+}
+
+func TestListOneItemHandler(t *testing.T) {
+	path := fmt.Sprintf("/items/%s", ids[0])
+	assert.True(t, primitive.IsValidObjectID(ids[0]))
+
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+
+	rec := httptest.NewRecorder()
+
+	// have to create a new mux router in order to process that id var
+	router := mux.NewRouter()
+
+	router.HandleFunc("/items/{id}", a.listOneItemHandler)
+
+	router.ServeHTTP(rec, req)
+
+	decoder := json.NewDecoder(rec.Result().Body)
+
+	var item model.Item
+	err := decoder.Decode(&item)
+	if err != nil {
+		fmt.Println("err: ", err)
+	}
+
+	// assertions
+	assert.True(t, primitive.IsValidObjectID(item.ID.Hex()))
+	assert.NotEmpty(t, item.Title)
+	assert.Greater(t, item.Price, 0.0)
+}
+
+func TestListItems(t *testing.T) {
+	// path := "/items/list"
+
+	// need to check every item returned by the function
+	// req := httptest.NewRequest(http.MethodGet, path, nil)
+	// rec := httptest.NewRecoder()
 
 }
 
