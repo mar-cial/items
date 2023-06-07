@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/mar-cial/items/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -74,8 +73,6 @@ func DeleteOneItem(ctx context.Context, coll *mongo.Collection, id string) (*mon
 
 	filter := bson.M{"_id": mongoid}
 	res, err := coll.DeleteOne(ctx, filter)
-	fmt.Println(res)
-	fmt.Println(err)
 
 	return res, err
 }

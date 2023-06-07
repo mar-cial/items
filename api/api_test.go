@@ -274,8 +274,6 @@ func TestCheckItemsAgain(t *testing.T) {
 		assert.NotEmpty(t, items[a].Title)
 		assert.Greater(t, items[a].Price, 0.0)
 	}
-
-	fmt.Println(items)
 }
 
 func TestMain(m *testing.M) {
