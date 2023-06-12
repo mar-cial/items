@@ -8,6 +8,7 @@ services:
       dockerfile: Dockerfile
     hostname: rest-server
     environment:
+      MONGOURI: ${MONGOURI:?mongo uri needs to be set}
       DBUSER: ${DBUSER:-root}
       DBPASS: ${DBPASS:?password not set}
       DBHOST: ${DBHOST:-db}

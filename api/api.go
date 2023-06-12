@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,18 +26,6 @@ func CreateApp() (*app, error) {
 	}, err
 }
 
-type errResponse struct {
-	Message string `json:"message"`
-	Status  int    `json:"status"`
-}
-
-func serveErrResponse(w http.ResponseWriter, msg string, status int) {
-	json.NewEncoder(w).Encode(&errResponse{
-		Message: msg,
-		Status:  status,
-	})
-}
-
 func commonMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -46,25 +35,29 @@ func commonMiddleware(next http.Handler) http.Handler {
 
 func (app *app) createOneItemHandler(w http.ResponseWriter, r *http.Request) {
 	coll := app.mc.Database(os.Getenv("DBNAME")).Collection(os.Getenv("DBCOLL"))
+
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		serveErrResponse(w, "bad request", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	item, err := model.UnmarshalItem(bodyBytes)
 	if err != nil {
-		serveErrResponse(w, "err unmarshaling", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	res, err := db.InsertOneItem(r.Context(), coll, &item)
 	if err != nil {
-		serveErrResponse(w, "err unmarshaling", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(&res)
+	if err := json.NewEncoder(w).Encode(&res); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (app *app) createManyItemsHandler(w http.ResponseWriter, r *http.Request) {
@@ -72,18 +65,20 @@ func (app *app) createManyItemsHandler(w http.ResponseWriter, r *http.Request) {
 
 	var items []model.Item
 	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
-		serveErrResponse(w, "err unmarshaling", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	insertManyRes, err := db.InsertItems(r.Context(), coll, items)
 	if err != nil {
-		serveErrResponse(w, "err from inserting items", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(&insertManyRes)
-
+	if err := json.NewEncoder(w).Encode(&insertManyRes); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (app *app) listOneItemHandler(w http.ResponseWriter, r *http.Request) {
@@ -91,17 +86,20 @@ func (app *app) listOneItemHandler(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 	if id == "" {
-		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		err := errors.New("no id provided")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	item, err := db.ListOneItem(r.Context(), coll, id)
 	if err != nil {
-		serveErrResponse(w, "err listing an item", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(&item)
+	if err := json.NewEncoder(w).Encode(&item); err != nil {
+
+	}
 }
 
 func (app *app) listItemsHandler(w http.ResponseWriter, r *http.Request) {
@@ -109,13 +107,13 @@ func (app *app) listItemsHandler(w http.ResponseWriter, r *http.Request) {
 
 	items, err := db.ListItems(r.Context(), coll)
 	if err != nil {
-		serveErrResponse(w, "could not list all items", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(&items)
-	if err != nil {
-		fmt.Println(err)
+	if err := json.NewEncoder(w).Encode(&items); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -124,23 +122,27 @@ func (app *app) updateOneItemHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if id == "" {
-		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		err := errors.New("no id provided")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	var item *model.Item
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		serveErrResponse(w, "err unmarshaling", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	updateRes, err := db.UpdateOneItem(r.Context(), coll, id, item)
 	if err != nil {
-		serveErrResponse(w, "err updating item", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(updateRes)
+	if err := json.NewEncoder(w).Encode(updateRes); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 }
 
@@ -149,17 +151,21 @@ func (app *app) deleteOneItemHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if id == "" {
-		serveErrResponse(w, "no id received", http.StatusInternalServerError)
+		err := errors.New("no id provided")
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	delRes, err := db.DeleteOneItem(r.Context(), coll, id)
 	if err != nil {
-		serveErrResponse(w, "err received from delete one item", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	json.NewEncoder(w).Encode(delRes)
+	if err := json.NewEncoder(w).Encode(delRes); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func CreateRouter(app *app) *mux.Router {

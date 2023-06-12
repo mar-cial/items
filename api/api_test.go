@@ -65,7 +65,11 @@ func TestCreateSingleItemHandler(t *testing.T) {
 	a.createOneItemHandler(w, req)
 
 	res := w.Result()
-	defer res.Body.Close()
+
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	// assertions
 
@@ -101,7 +105,10 @@ func TestCreateItemsHandler(t *testing.T) {
 	a.createManyItemsHandler(w, req)
 
 	res := w.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
@@ -132,7 +139,10 @@ func TestListOneItemHandler(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	res := rec.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
@@ -159,7 +169,10 @@ func TestListItemsHandler(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	res := rec.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
@@ -199,7 +212,10 @@ func TestUpdateItemsHandler(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	res := rec.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
@@ -226,7 +242,10 @@ func TestDeleteOneItemHandler(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	res := rec.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
@@ -250,7 +269,10 @@ func TestCheckItemsAgain(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	res := rec.Result()
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		log.Fatal(err)
+	}()
 
 	decoder := json.NewDecoder(res.Body)
 
