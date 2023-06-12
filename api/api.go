@@ -18,7 +18,7 @@ type app struct {
 }
 
 func CreateApp() (*app, error) {
-	client, err := db.CreateClient()
+	client, err := db.CreateClient(os.Getenv("MONGOURI"))
 
 	return &app{
 		mc: client,

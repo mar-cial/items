@@ -2,22 +2,22 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func CreateClient() (*mongo.Client, error) {
-	user := os.Getenv("DBUSER")
-	pass := os.Getenv("DBPASS")
-	host := os.Getenv("DBHOST")
-	port := os.Getenv("DBPORT")
+func CreateClient(uri string) (*mongo.Client, error) {
+	if len(uri) > 0 {
+		return mongo.Connect(
+			context.Background(),
+			options.Client().ApplyURI(uri))
 
-	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", user, pass, host, port)
-	return mongo.Connect(
-		context.Background(),
-		options.Client().ApplyURI(uri))
+	}
 
+	err := errors.New("could not connect")
+	fmt.Println(err)
+	return nil, err
 }

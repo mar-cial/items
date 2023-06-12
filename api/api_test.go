@@ -19,24 +19,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var endpoint string
-var mc *mongo.Client
-var a *app
-var ids []string
+var (
+	endpoint string
+	mc       *mongo.Client
+	a        *app
+	ids      []string
+)
 
 func TestCreateApp(t *testing.T) {
-	var err error
-	arrs := []string{"DBUSER", "DBPASS", "DBHOST", "DBPORT", "DBNAME"}
-	for k := range arrs {
-		s := os.Getenv(arrs[k])
-		assert.NotEmpty(t, s)
-	}
-	assert.NoError(t, err)
-
-	endpoint = endpoint[len(endpoint)-5:]
-	err = os.Setenv("DBPORT", endpoint)
-	assert.NoError(t, err)
-
 	app, err := CreateApp()
 	assert.NoError(t, err)
 
@@ -276,20 +266,21 @@ func TestCheckItemsAgain(t *testing.T) {
 	}
 }
 
-func TestMain(m *testing.M) {
-	var err error
+func CreateMongoContainer() (testcontainers.Container, error) {
 	envmap := map[string]string{
 		"DBUSER":     "root",
 		"DBPASS":     "testpass",
-		"DBHOST":     "localhost",
-		"DBPORT":     "27017",
+		"DBPORT":     "27017/tcp",
 		"DBNAME":     "testdb",
 		"DBCOLL":     "testcoll",
 		"SERVERPORT": "8000",
 	}
 
 	for k := range envmap {
-		err = os.Setenv(k, envmap[k])
+		err := os.Setenv(k, envmap[k])
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// to do this we need a mongo image, and a container running that image.
@@ -314,18 +305,36 @@ func TestMain(m *testing.M) {
 		ContainerRequest: req,
 		Started:          true,
 	})
-
-	endpoint, err = mongoC.Endpoint(ctx, "")
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
+	}
+
+	return mongoC, err
+}
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	mongoC, err := CreateMongoContainer()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	endpoint, err := mongoC.Endpoint(ctx, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = os.Setenv("MONGOURI", fmt.Sprintf("mongodb://%s:%s@%s", os.Getenv("DBUSER"), os.Getenv("DBPASS"), endpoint))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	m.Run()
 
 	defer func() {
-		var err error
 		os.Clearenv()
-		err = mongoC.Terminate(ctx)
+		err := mongoC.Terminate(ctx)
 		if err != nil {
 			log.Fatalln(err)
 		}
